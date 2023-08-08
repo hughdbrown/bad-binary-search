@@ -48,6 +48,71 @@ bad_3: empty vector to search
 thread 'main' panicked at 'attempt to subtract with overflow', src/main.rs:7:18
 ```
 
-The first case does not cause a problem until the usize is cast to an i32. The only reason that i32 is the return type is to allow the index to show a failed search. The recommended Rust approach would be to have the binary search return an enum (one type for success, one type for failure) and to use a usize for the correct position in the success case.
+# Test cases
+## bad_1
+This test case attempts to cause a failure at the calculation of `mid`:
+```
+    while lo <= hi {
+        let mid = (lo + hi) / 2;
+```
 
+The problem is that the intermediate result `lo + hi` can overflow a `usize` if the value searched for is greater than the maximum value in the data. In that case, the calculation of `mid` converges to `hi` so that the intermediate result is twice the length of the data. In the case that the data exceeds half the value represented by a `usize`, there will be an overflow and the code will panic.
+
+Here is a simple demonstration of the panic (run in `evcxr`) for a 64-bit `usize`, i.e. a 64-bit Rust build:
+```
+>> let a: usize = (1usize << 63);
+>> a + a
+thread '<unnamed>' panicked at 'attempt to add with overflow', src/lib.rs:119:40
+stack backtrace:
+   0: _rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::panic
+   3: <core::panic::unwind_safe::AssertUnwindSafe<F> as core::ops::function::FnOnce<()>>::call_once
+   4: _run_user_code_6
+   5: evcxr::runtime::Runtime::run_loop
+   6: evcxr::runtime::runtime_hook
+   7: evcxr::main
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+```
+
+The traditional approach to calculating `mid` has been this:
+```
+let mid = lo + (hi - lo) / 2;
+```
+This calculation does not overflow.
+
+## bad_2
+This case tests what happens when `mid` is 0 and the value is below that -- that is, the value being searched for is less than the least value in the data.
+```
+        else if data[mid] > value {
+            hi = mid - 1;
+        }
+```
+
+Since `mid` is an unsigned, subtracting 1 from the 0 value causes an overflow and the code panics.
+
+The best approaches to solving this are:
+- Testing for `mid == 0` and returning early if necessary:
+```
+        else if data[mid] > value {
+            if mid == 0 { break; }
+            hi = mid - 1;
+        }
+```
+- Testing for the value being out of bounds
+Before the main loop even starts, the code could do bounds checks:
+```
+    if value < data[0] {
+        return NotFound;
+    }
+```
+
+A similar test could be done for the other bound:
+```
+    if value > items.last().unwrap() {
+        return NotFound;
+    }
+```
+
+The output for this test shows a different problem: the internal use of `usize` will produce correct results, but if it is downcast to `i32` on a 64-bit build, the results will be wrong for cases where the value is found in a vector whose size exceeds the range of an `i32`.
 
