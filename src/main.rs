@@ -1,3 +1,7 @@
+use std::panic::{
+    catch_unwind,
+};
+
 fn binary_search(data: &[i32], value: i32) -> i32 {
     let mut lo = 0;
     let mut hi = data.len() - 1;
@@ -18,7 +22,7 @@ fn binary_search(data: &[i32], value: i32) -> i32 {
 }
 
 fn bad_1() {
-    println!("bad_1: try to overflow calculation of mid");
+    println!("-----\nbad_1: try to overflow calculation of mid");
     let mut data = vec![0; 1 << 31];
     data.push(1);
     let i = binary_search(&data, 1);
@@ -26,17 +30,21 @@ fn bad_1() {
 }
 
 fn bad_2() {
-    println!("bad_2: overflow calculation of hi");
+    println!("-----\nbad_2: overflow calculation of hi");
     let data = vec![1; 1];
-    let i = binary_search(&data, 0);
-    println!("{}", i);
+    let panic = catch_unwind(|| {
+        println!("{}", binary_search(&data, 0));
+    }).is_err();
+    assert!(panic);
 }
 
 fn bad_3() {
-    println!("bad_3: empty vector to search");
+    println!("-----\nbad_3: empty vector to search");
     let data = vec![];
-    let i = binary_search(&data, 0);
-    println!("{}", i);
+    let panic = catch_unwind(|| {
+        println!("{}", binary_search(&data, 0));
+    }).is_err();
+    assert!(panic);
 }
 
 fn main() {
